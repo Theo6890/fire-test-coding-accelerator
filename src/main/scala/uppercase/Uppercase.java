@@ -2,20 +2,18 @@ package uppercase;
 
 public class Uppercase {
     public static void main(String[] args) {
-        StringBuilder concatArgs = new StringBuilder(), modified = new StringBuilder();
+        StringBuilder concatArgs = new StringBuilder();
+        char c;
+
         for (String arg : args) {
-            concatArgs.append(arg);
+            for (int i = 0; i < arg.length(); i++) {
+                if (i % 2 == 0) c = Character.toLowerCase(arg.charAt(i));
+                else c = Character.toUpperCase(arg.charAt(i));
+                concatArgs.append(c);
+            }
             concatArgs.append(" ");
         }
 
-        char c;
-
-        for (int i = 0; i < concatArgs.length(); i++) {
-            if (i % 2 == 0) c = Character.toUpperCase(concatArgs.charAt(i));
-            else c = Character.toLowerCase(concatArgs.charAt(i));
-            modified.append(c);
-        }
-
-        System.out.println(modified);
+        System.out.println(concatArgs);
     }
 }
