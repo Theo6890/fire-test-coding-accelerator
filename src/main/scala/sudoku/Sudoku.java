@@ -9,14 +9,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Sudoku {
+    static Map<Integer, ArrayList<String>> lines, columns, squares;
     static FileInputStream fis;
-    static Map<Integer, ArrayList<String>> squares, lines, columns;
 
     public static void main(String[] args) {
         init(args);
 
-        populateLines();
-//        populateSquares();
+        populateMaps();
+
+        System.out.println("LINES:");
+        printData(lines);
+        System.out.println("\nCOLUMNS:");
+        printData(columns);
+        System.out.println("\nSQUARES:");
+        printData(squares);
+
         resolveSudoku();
     }
 
@@ -27,9 +34,46 @@ public class Sudoku {
 
         assert fis != null;
 
-        squares = new HashMap<Integer, ArrayList<String>>();
-        lines = new HashMap<Integer, ArrayList<String>>();
-        columns = new HashMap<Integer, ArrayList<String>>();
+        lines = new HashMap<>();
+        columns = new HashMap<>();
+        squares = new HashMap<>();
+
+        for (int i = 0; i < 9; i++) {
+            lines.putIfAbsent(i, new ArrayList<>());
+            columns.putIfAbsent(i, new ArrayList<>());
+            squares.putIfAbsent(i, new ArrayList<>());
+        }
+    }
+
+    private static void populateMaps() {
+        try {
+            char c;
+            String current, previous = "";
+            int lineCount = 0, columnCount = -1;
+
+            while (fis.available() > 0) {
+                c = (char) fis.read();
+                current = String.valueOf(c);
+
+                if (current.equals("\n")) columnCount = -1;
+                if (!current.equals("|") && !current.equals("\n") && !current.equals("+") && !current.equals("-")) {
+                    columnCount++;
+//                    lines[lineCount][columnCount] = current;
+                    lines.get(lineCount).add(current);
+//                    columns[columnCount][lineCount] = current;
+                    columns.get(columnCount).add(current);
+                    populateSquares(lineCount, columnCount, current);
+                }
+
+                //Increment nbr of line red & register values in corresponding Map
+                if (current.equals("\n") && !previous.equals("-")) {
+                    lineCount++;
+                }
+                previous = current;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static FileInputStream openFile(String workingDir, String sudoku) {
@@ -51,36 +95,30 @@ public class Sudoku {
         return null;
     }
 
-    private static void populateLines() {
-        try {
-            char current;
-            String s, previous = "";
-            ArrayList<String> lineValues = new ArrayList<String>(9);
-            int lineCount = 0;
-
-            while (fis.available() > 0) {
-                current = (char) fis.read();
-                s = String.valueOf(current);
-
-                if (!s.equals("|") && !s.equals("\n") && !s.equals("+") && !s.equals("-")) {
-                    lineValues.add(s);
-                }
-
-                //Increment nbr of line red & register values in corresponding Map
-                if (s.equals("\n") && !previous.equals("-")) {
-                    lines.put(lineCount, lineValues);
-                    System.out.println(lines.get(lineCount).toString());
-                    lineValues.clear();
-                    lineCount++;
-                }
-                previous = s;
-            }
-
-            System.out.println(lines.entrySet().toString());
-        } catch (IOException e) {
-            e.printStackTrace();
+    private static void populateSquares(int lineCount, int columnCount, String value) {
+        if (lineCount < 3) { // Fill in 3 first SQUARES
+            if (columnCount < 3) squares.get(0).add(value);
+            else if (columnCount < 6) squares.get(1).add(value);
+            else squares.get(2).add(value);
+        } else if (lineCount < 6) {
+            if (columnCount < 3) squares.get(3).add(value);
+            else if (columnCount < 6) squares.get(4).add(value);
+            else squares.get(5).add(value);
+        } else {
+            if (columnCount < 3) squares.get(6).add(value);
+            else if (columnCount < 6) squares.get(7).add(value);
+            else squares.get(8).add(value);
         }
     }
+
+    private static void printData(Map<Integer, ArrayList<String>> dataMapped) {
+        for (int i = 0; i < 9; i++) {
+            System.out.println(dataMapped.get(i).toString());
+            if (i == 2 || i == 5) System.out.println("---------------------------");
+        }
+    }
+
+    enum SHAPE {SQUARE, LINE, COLUMN}
 
     private static void resolveSudoku() {
 //        try {
@@ -89,59 +127,6 @@ public class Sudoku {
 //            System.out.println("Ceci n'est pas un nombre");
 //        }
     }
-
-    /*private static void populateSquares() {
-        try {
-            char c;
-            String current, previous = "";
-            ArrayList<String> squareValues = new ArrayList<String>(9);
-            int squareCount = 0, i = 1;
-
-            c = (char) fis.read();
-            current = String.valueOf(c);
-
-            while (fis.available() > 0) {
-                previous = current;
-                c = (char) fis.read();
-                current = String.valueOf(c);
-
-                if (i == 23) {
-                    System.out.println("i == 23");
-                    break;
-                }
-
-                if (previous.equals("|") || previous.equals("\n")) {
-                    if (squares.get(squareCount) == null) {
-                        ArrayList<String> tmp = squareValues;
-                        squares.put(squareCount, tmp);
-                        squareValues.clear();
-                    }
-                    if (previous.equals("\n")) {
-                        squareCount -= 2;
-                    } else squareCount++; // previous is a |
-                } else {
-                    if (squares.get(squareCount) != null) {
-                        squares.get(squareCount).add(previous);
-                    } else squareValues.add(previous);
-                }
-                i++;
-
-
-//                if (previous.equals("\n") && (current instanceof Integer)) {
-//                    if (squares.get(squareCount) == null) {
-//                        squares.put(squareCount, squareValues);
-//                        squareValues.clear();
-//                    }
-//                    squareCount -= 2;
-//                } else squareCount += 3;
-
-            }
-            System.out.println("squares: " + squares.toString());
-            System.out.println("squares: " + squareCount);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }*/
 
     public boolean isInSquare(int squareIndex, int searchingNumber) {
         ArrayList<String> values = squares.get(squareIndex);
@@ -169,6 +154,4 @@ public class Sudoku {
         }
         return false;
     }
-
-    enum SHAPE {SQUARE, LINE, COLUMN}
 }
