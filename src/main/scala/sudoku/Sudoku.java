@@ -1,9 +1,6 @@
 package sudoku;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,8 +8,11 @@ import java.util.Map;
 
 public class Sudoku {
     static Map<Integer, ArrayList<String>> lines, columns, squares;
-    static FileInputStream fis;
+    static FileInputStream inputStream;
+    static FileOutputStream fileOutputStream;
     static boolean incomplete = true;
+    static ArrayList<String> resultsSortedPerLine;
+    static String workingDir;
 
     public static void main(String[] args) {
         init(args);
@@ -21,20 +21,21 @@ public class Sudoku {
         printPopulatedMaps();
 
         resolveSudoku();
-//        saveResultsInFile();
-//        closeEverything();
+        saveResultsInFile();
     }
 
     public static void init(String[] args) {
         String sudoku = args[0];
-        String workingDir = new File("src/main/scala/sudoku").getAbsolutePath();
-        fis = openFile(workingDir, sudoku);
+        workingDir = new File("src/main/scala/sudoku").getAbsolutePath();
+        openFile(sudoku);
 
-        assert fis != null;
+        assert inputStream != null;
 
         lines = new HashMap<>();
         columns = new HashMap<>();
         squares = new HashMap<>();
+
+        resultsSortedPerLine = new ArrayList<>();
 
         for (int i = 0; i < 9; i++) {
             lines.putIfAbsent(i, new ArrayList<>());
@@ -43,23 +44,35 @@ public class Sudoku {
         }
     }
 
-    public static FileInputStream openFile(String workingDir, String sudoku) {
-        File file = new File(workingDir + "/" + sudoku);
-        if (!file.exists()) {
-            System.out.println(workingDir + "/" + sudoku + " does not exist.");
-            return null;
-        }
-        if (!(file.isFile() && file.canRead())) {
-            System.out.println(file.getName() + " cannot be read from.");
-            return null;
-        }
+    public static void openFile(String inputFileName) {
+        File file = new File(workingDir + "/" + inputFileName);
+        if (!file.exists()) System.out.println(workingDir + "/" + inputFileName + " does not exist.");
+        if (!(file.isFile() && file.canRead())) System.out.println(file.getName() + " cannot be read from.");
+
         try {
-            fis = new FileInputStream(file);
-            return fis;
+            inputStream = new FileInputStream(file);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-        return null;
+    }
+
+    private static void saveResultsInFile() {
+        try {
+            fileOutputStream = new FileOutputStream(workingDir + "/" + "sol.txt");
+
+            for (int lineIndex = 0; lineIndex < lines.size(); lineIndex++) {
+                for (int columnIndex = 0; columnIndex < lines.size(); columnIndex++) {
+                    if (lineIndex != 0 && lineIndex % 3 == 0 && columnIndex == 0)
+                        fileOutputStream.write("---+---+---\n".getBytes());
+                    if (columnIndex != 0 && columnIndex % 3 == 0) fileOutputStream.write("|".getBytes());
+                    fileOutputStream.write(lines.get(lineIndex).get(columnIndex).getBytes());
+                    if (columnIndex != 0 && columnIndex % 8 == 0) fileOutputStream.write("\n".getBytes());
+                }
+            }
+            fileOutputStream.close();
+        } catch (Exception e) {
+            e.getStackTrace();
+        }
     }
 
     private static void populateMaps() {
@@ -68,8 +81,8 @@ public class Sudoku {
             String current, previous = "";
             int lineCount = 0, columnCount = -1;
 
-            while (fis.available() > 0) {
-                c = (char) fis.read();
+            while (inputStream.available() > 0) {
+                c = (char) inputStream.read();
                 current = String.valueOf(c);
 
                 if (current.equals("\n")) columnCount = -1;
@@ -86,12 +99,12 @@ public class Sudoku {
                 }
                 previous = current;
             }
+            inputStream.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    //TODO: Simplify algo
     private static void updateSquares(int lineCount, int columnCount, String value) {
         if (lineCount < 3) { // Fill in 3 first SQUARES
             if (columnCount < 3) squares.get(0).add(value);
@@ -129,7 +142,6 @@ public class Sudoku {
             for (int i = 0; i < squares.size(); i++) {
                 resolveSingleBlankInLine(i);
                 resolveSingleBlankInColumn(i);
-//                resolveSingleBlankInSquare(i);
             }
             hasBeenCompleted();
         }
@@ -152,15 +164,9 @@ public class Sudoku {
         if (updateNeeded) updateMapsFromColumns();
     }
 
-
     private static void resolveSingleBlankInLine(int i) {
         boolean updateNeeded = resolveSingleMissingNumberIn(lines, i);
         if (updateNeeded) updateMapsFromLines();
-    }
-
-    private static void resolveSingleBlankInSquare(int i) {
-        boolean updateNeeded = resolveSingleMissingNumberIn(squares, i);
-        if (updateNeeded) updateMapsFromSquares();
     }
 
     private static void updateMapsFromColumns() {
@@ -193,47 +199,32 @@ public class Sudoku {
         }
     }
 
-    private static void updateMapsFromSquares() {
-        for (int i = 0; i < squares.size(); i++) {
-            lines.get(i).clear();
-            columns.get(i).clear();
-        }
-
-        for (int lineI = 0; lineI < squares.size(); lineI++) {
-            for (int columnI = 0; columnI < squares.size(); columnI++) {
-
-            }
-        }
-    }
-
     private static boolean resolveSingleMissingNumberIn(Map<Integer, ArrayList<String>> shape, int shapeIndex) {
-        if (missingNumbersCount(shape, shapeIndex) == 1) {
-            shape.get(shapeIndex).set(
-                    getIndexesMissingStringsInShape(shape.get(shapeIndex)).get(0),
-                    getMissingStringsInShape(shape.get(shapeIndex)).get(0)
-            );
-            return true;
-        }
-        return false;
+        if (missingNumbersCount(shape, shapeIndex) != 1) return false;
+
+        shape.get(shapeIndex).set(
+                getIndexMissingStringIn(shape.get(shapeIndex)),
+                getMissingStringIn(shape.get(shapeIndex))
+        );
+        resultsSortedPerLine.add(getMissingStringIn(shape.get(shapeIndex)));
+        return true;
     }
 
     private static int missingNumbersCount(Map<Integer, ArrayList<String>> shape, int shapeIndex) {
         return Collections.frequency(shape.get(shapeIndex), "_");
     }
 
-    public static ArrayList<Integer> getIndexesMissingStringsInShape(ArrayList<String> values) {
-        ArrayList<Integer> indexesMissingNumbers = new ArrayList<>();
-        for (int i = 0; i < values.size(); i++) {
-            if (values.get(i).equals("_")) indexesMissingNumbers.add(i);
-        }
-        return indexesMissingNumbers;
+    public static int getIndexMissingStringIn(ArrayList<String> values) {
+        for (int i = 0; i < values.size(); i++)
+            if (values.get(i).equals("_")) return i;
+
+        return -1;
     }
 
-    public static ArrayList<String> getMissingStringsInShape(ArrayList<String> values) {
-        ArrayList<String> missingNumbers = new ArrayList<>();
-        for (int i = 0; i < values.size(); i++) {
-            if (!values.contains(String.valueOf(i + 1))) missingNumbers.add(String.valueOf(i + 1));
-        }
-        return missingNumbers;
+    public static String getMissingStringIn(ArrayList<String> values) {
+        for (int i = 0; i < values.size(); i++)
+            if (!values.contains(String.valueOf(i + 1))) return String.valueOf(i + 1);
+
+        return "";
     }
 }
